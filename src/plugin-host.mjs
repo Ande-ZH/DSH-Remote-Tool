@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { deviceService } from './devices.mjs'
+import { deviceService } from './services.mjs'
 
 export { deviceService }
 export const name = 'dsh-shared-remote'

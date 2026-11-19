@@ -119,6 +119,7 @@ function fixtureSsh(home, modelPort, keys) {
           env: {
             ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'),
             PATH: dirname(process.execPath) + ':' + process.env.PATH,
+            DBUS_SESSION_BUS_ADDRESS: 'unix:path=/nonexistent-dsh-test-bus',
             DSH_TELEMETRY_DISABLED: '1', DSH_PERMISSION_MODE: 'workspace-write',
             DEEPSEEK_API_KEY: 'local-fixture-key', DEEPSEEK_BASE_URL: 'http://127.0.0.1:' + modelPort,
           },
@@ -154,7 +155,7 @@ async function authenticate(connection) {
   return { origin: connection.origin, cookie }
 }
 
-async function rpc(client, name, args, expectedStatus = 200, timeout = 6000) {
+async function rpc(client, name, args = {}, expectedStatus = 200, timeout = 6000) {
   const response = await fetch(client.origin + '/api/' + name, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(client.cookie ? { cookie: client.cookie } : {}) },
@@ -314,9 +315,11 @@ test('two OpenSSH clients share a real DSH workspace, one running agent and pers
   await writeFile(join(extension, 'client.js'),
     'window.__ModuleLoader__.load({id:"' + extensionName +
     '",factory:()=>({name:"' + extensionName + '",apply(){}})})\n')
-  if (dsh) {
-    await writeFile(join(base, 'config.json'), JSON.stringify({ dshBin: resolve(dsh) }), { mode: 0o600 })
-  }
+  await writeFile(join(base, 'config.json'), JSON.stringify({
+    ...(dsh ? { dshBin: resolve(dsh) } : {}),
+    ...(process.env.DSH_E2E_PNPM ? { pnpmBin: resolve(process.env.DSH_E2E_PNPM) } : {}),
+    magpie: false,
+  }), { mode: 0o600 })
 
   // Provide an isolated OpenSSH config via a test-only PATH wrapper.
   const ssh = spawn('ssh-keyscan', ['-T', '5', '-t', 'rsa', '-p', String(port), '127.0.0.1'], { stdio: ['ignore', 'pipe', 'ignore'] })
@@ -328,6 +331,7 @@ test('two OpenSSH clients share a real DSH workspace, one running agent and pers
   const bin = join(home, 'bin')
   const config = join(home, 'ssh.config')
   await mkdir(bin)
+  await writeFile(join(bin, 'systemctl'), '#!/bin/sh\nexit 1\n', { mode: 0o700 })
   await writeFile(config, [
     'Host device-a', '  IdentityFile ' + localKeys[0],
     'Host device-b', '  IdentityFile ' + localKeys[1],
@@ -350,6 +354,13 @@ test('two OpenSSH clients share a real DSH workspace, one running agent and pers
   assert.notEqual(a.origin, b.origin)
   await rpc({ origin: b.origin }, 'session/list', { _request: {} }, 401)
   const [clientA, clientB] = await Promise.all([authenticate(a), authenticate(b)])
+  const appearance = (await rpc(clientA, 'settings/describe')).namespaces.find(row => row.ns === 'ui-theme')
+  assert.ok(appearance, 'Host serves shared appearance')
+  await rpc(clientA, 'settings/mutate', { ns: 'ui-theme', expectedRevision: appearance.revision,
+    ops: [{ op: 'set', path: ['preference'], value: 'dark' }, { op: 'set', path: ['fontSize'], value: 16 }] })
+  const shared = (await rpc(clientB, 'settings/describe')).namespaces.find(row => row.ns === 'ui-theme')
+  assert.equal(shared.value.preference, 'dark')
+  assert.equal(shared.value.fontSize, 16)
   const web = await fetch(clientB.origin + '/', { headers: { cookie: clientB.cookie } })
   assert.equal(web.status, 200)
   assert.match(await web.text(), /<!doctype html>/i)
@@ -432,6 +443,9 @@ test('two OpenSSH clients share a real DSH workspace, one running agent and pers
   const restarted = await connectClient()
   assert.notEqual(restarted.instance, b.instance)
   const afterRestart = await authenticate(restarted)
+  const restoredTheme = (await rpc(afterRestart, 'settings/describe')).namespaces.find(row => row.ns === 'ui-theme')
+  assert.equal(restoredTheme.value.preference, 'dark')
+  assert.equal(restoredTheme.value.fontSize, 16)
   assert.match(JSON.stringify(await history(afterRestart, sessionId)), /fixture-answer-two/)
   assert.equal((await remoteBundle(afterRestart)).enabled, true)
   assert.deepEqual(await (await extensionRoute(afterRestart)).json(), { loaded: true })

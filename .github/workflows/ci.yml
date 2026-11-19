@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: git diff --exit-code -- dist
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm pack --silent
+      - name: Prepare real DSH loader
+        run: npm install --prefix "$RUNNER_TEMP/dsh-runtime" --no-audit --no-fund @deepseek-ai/dsh@0.2.2-rc.1 pnpm@11.25.0
+      - name: Test npm CLI installation and plugin activation
+        run: |
+          export PATH="$RUNNER_TEMP/dsh-runtime/node_modules/.bin:$PATH"
+          export DSH_E2E_BIN="$RUNNER_TEMP/dsh-runtime/node_modules/.bin/dsh"
+          export DSH_E2E_PLUGIN="$PWD/dsh-shared-remote-$(node -p "require('./package.json').version").tgz"
+          npm run test:package

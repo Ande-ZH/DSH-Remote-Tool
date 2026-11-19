@@ -8,6 +8,9 @@ const { basename, dirname, join } = require('node:path')
 const { randomUUID } = require('node:crypto')
 const { setTimeout: pause } = require('node:timers/promises')
 
+const { loopback } = require('./magpie/loopback.cjs')
+const { prepareMagpie } = require('./runtime/magpie.cjs')
+
 const protocol = 1
 const dshVersion = '0.2.2-rc.1'
 const pnpmVersion = '11.25.0'
@@ -80,7 +83,7 @@ function installTools(directory, packages) {
       'install', '--prefix', staging, '--no-audit', '--no-fund',
       '--fetch-retries=0', '--fetch-timeout=25000',
       ...packages.map(({ name, version }) => name + '@' + version),
-    ], 120_000)
+    ], 600_000)
     if (result.status !== 0 || !verified(staging)) {
       throw new Error('无法准备远端 DSH 或 pnpm，请检查 npm、网络和磁盘空间，或配置离线运行时路径')
     }
@@ -184,12 +187,9 @@ async function currentEndpoint() {
       processStart(record.childPid) !== record.childStart) return
   const url = new URL('http://127.0.0.1:' + record.port + '/')
   url.searchParams.set('token', record.token)
-  const response = await fetch(url, {
-    redirect: 'manual', signal: AbortSignal.timeout(1000),
-  }).catch(() => null)
+  const response = await loopback(url, { timeoutMs: 1000 }).catch(() => null)
   if (!response) return
-  await response.body?.cancel()
-  if (response.status === 303 && response.headers.has('set-cookie')) {
+  if (response.status === 303 && response.headers['set-cookie']) {
     const { port, token, instance } = record
     return { protocol, dshVersion, port, token, instance }
   }
@@ -213,6 +213,8 @@ function start({ dshBin, pnpmBin }) {
   if (execute('systemctl', ['--user', 'show-environment'], 3000).status === 0) {
     const service = execute('systemd-run', [
       '--user', '--quiet', '--collect', '--unit=' + unit,
+      '--setenv=HOME=' + homedir(),
+      ...(process.env.XDG_CONFIG_HOME ? ['--setenv=XDG_CONFIG_HOME=' + process.env.XDG_CONFIG_HOME] : []),
       '--property=Type=exec', '--property=Restart=on-failure', '--property=RestartSec=3',
       'flock', ...args,
     ], 6000)
@@ -237,7 +239,7 @@ async function main() {
   if (mode === 'serve') return serve(process.argv[3], process.argv[4])
   if (mode === 'connect') {
     const child = spawn('flock', [
-      '-w', '180', '-F', bootstrapLock, process.execPath, __filename, 'locked-connect',
+      '-w', '1200', '-F', bootstrapLock, process.execPath, __filename, 'locked-connect', ...process.argv.slice(3),
     ], { stdio: ['ignore', 'inherit', 'inherit'] })
     child.on('error', () => {
       console.error('远端需要 util-linux 的 flock')
@@ -254,6 +256,11 @@ async function main() {
     start(prepareRuntime())
   }
   const endpoint = await waitUntilReady()
+  try {
+    endpoint.magpie = await prepareMagpie(root, readJson(configFile) ?? {}, process.argv[3] ? Number(process.argv[3]) : undefined)
+  } catch (error) {
+    endpoint.magpie = { status: 'error', error: error.code ? 'Magpie 安装或启动失败，请检查网络和权限后重新连接' : error.message }
+  }
   process.stdout.write('DSH_REMOTE_V1 ' + JSON.stringify(endpoint) + '\n')
 }
 

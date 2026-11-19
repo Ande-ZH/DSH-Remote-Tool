@@ -58,6 +58,152 @@ var require_loopback = __commonJS({
   }
 });
 
+// src/runtime/magpie.cjs
+var require_magpie = __commonJS({
+  "src/runtime/magpie.cjs"(exports2, module2) {
+    var { spawn, spawnSync } = require("node:child_process");
+    var { randomUUID } = require("node:crypto");
+    var { mkdir, readFile, writeFile, rename, rm, chmod, stat } = require("node:fs/promises");
+    var { homedir: homedir2 } = require("node:os");
+    var { join: join2, isAbsolute } = require("node:path");
+    var { setTimeout: pause } = require("node:timers/promises");
+    var { loopback } = require_loopback();
+    var version = "0.1.4539";
+    var releases = {
+      x64: "amd64",
+      arm64: "arm64"
+    };
+    async function json(path) {
+      try {
+        return JSON.parse(await readFile(path, "utf8"));
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+        return {};
+      }
+    }
+    function validPort(value) {
+      return Number.isInteger(value) && value > 0 && value <= 65535;
+    }
+    async function configuredPort(override, fallback = 3425) {
+      if (override !== void 0) {
+        if (!validPort(override)) throw new Error("Magpie 端口须为 1–65535");
+        return override;
+      }
+      const xdg = process.env.XDG_CONFIG_HOME;
+      const directory = isAbsolute(xdg || "") ? xdg : join2(homedir2(), ".config");
+      const settings = await json(join2(directory, "magpie", "settings.json"));
+      return validPort(settings.port) ? settings.port : validPort(fallback) ? fallback : 3425;
+    }
+    async function probe(port) {
+      try {
+        const { status, data } = await loopback(new URL("http://127.0.0.1:" + port + "/api/hello"), { timeoutMs: 1500 });
+        if (status !== 200 || data?.name !== "magpie" || typeof data.version !== "string") {
+          throw new Error("Magpie 端口被其他服务占用");
+        }
+        return data;
+      } catch (error) {
+        if (error.code === "ECONNREFUSED") return null;
+        throw error;
+      }
+    }
+    function execute(bin, args, env = process.env) {
+      return spawnSync(bin, args, { env, encoding: "utf8", timeout: 6e3, stdio: ["ignore", "pipe", "pipe"] });
+    }
+    async function install(root) {
+      const release = releases[process.arch];
+      if (!release) throw new Error("Magpie 自动安装支持 Linux amd64 和 arm64");
+      const directory = join2(root, "magpie-" + version);
+      const bin = join2(directory, "magpie");
+      try {
+        await stat(bin);
+        if (execute(bin, ["--version"]).status === 0) return bin;
+        throw new Error("Magpie 已安装文件无法运行，请配置 magpieBin 或修复运行时后重试");
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      const response = await fetch("https://github.com/yetone/magpie-releases/releases/download/v" + version + "/magpie-cli-linux-" + release, {
+        signal: AbortSignal.timeout(9e4)
+      });
+      if (!response.ok) throw new Error("Magpie 下载失败（HTTP " + response.status + "），可配置 magpieBin 使用预装文件");
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of response.body) {
+        size += chunk.length;
+        if (size > 160 * 1024 * 1024) throw new Error("Magpie 下载超过大小限制");
+        chunks.push(chunk);
+      }
+      const bytes = Buffer.concat(chunks);
+      await mkdir(directory, { recursive: true, mode: 448 });
+      const temporary = bin + "." + randomUUID();
+      try {
+        await writeFile(temporary, bytes, { flag: "wx", mode: 448 });
+        await chmod(temporary, 448);
+        await rename(temporary, bin);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+      return bin;
+    }
+    async function prepareMagpie(root, settings, override) {
+      if (settings.magpie === false) return { status: "disabled" };
+      const previous = await json(join2(root, "magpie-runtime.json"));
+      const port = await configuredPort(override ?? settings.magpiePort, previous.port);
+      const running = await probe(port);
+      if (running) return { status: "ready", port, version: running.version, reused: true };
+      const env = { ...process.env, PATH: [process.env.PATH, join2(homedir2(), ".local/bin")].filter(Boolean).join(":") };
+      let bin = settings.magpieBin;
+      if (bin !== void 0 && (typeof bin !== "string" || !isAbsolute(bin))) throw new Error("magpieBin 须为绝对路径");
+      if (!bin) {
+        const existing = execute("magpie", ["--version"], env);
+        bin = existing.status === 0 ? execute("sh", ["-c", "command -v magpie"], env).stdout.trim() : await install(root);
+      }
+      if (execute(bin, ["--version"], env).status !== 0) throw new Error("Magpie 可执行文件无法运行");
+      const state = join2(root, "magpie-runtime.json");
+      const temporary = state + "." + randomUUID();
+      try {
+        await writeFile(temporary, JSON.stringify({ bin, port }) + "\n", { flag: "wx", mode: 384 });
+        await rename(temporary, state);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+      env.MAGPIE_ADDR = "127.0.0.1:" + port;
+      const args = ["-n", "-F", join2(root, "magpie.lock"), bin, "serve"];
+      let started = false;
+      if (execute("systemctl", ["--user", "show-environment"]).status === 0) {
+        started = execute("systemd-run", [
+          "--user",
+          "--quiet",
+          "--collect",
+          "--unit=dsh-remote-magpie",
+          "--property=Restart=on-failure",
+          "--property=RestartSec=3",
+          "--setenv=HOME=" + homedir2(),
+          "--setenv=MAGPIE_ADDR=" + env.MAGPIE_ADDR,
+          "--setenv=PATH=" + env.PATH,
+          ...process.env.XDG_CONFIG_HOME ? ["--setenv=XDG_CONFIG_HOME=" + process.env.XDG_CONFIG_HOME] : [],
+          "flock",
+          ...args
+        ], env).status === 0;
+      }
+      if (!started) {
+        const child = spawn("flock", args, { env, detached: true, stdio: "ignore" });
+        await new Promise((resolve, reject) => {
+          child.once("spawn", resolve);
+          child.once("error", reject);
+        });
+        child.unref();
+      }
+      for (let i = 0; i < 40; i++) {
+        const ready = await probe(port);
+        if (ready) return { status: "ready", port, version: ready.version, reused: false };
+        await pause(250);
+      }
+      throw new Error("Magpie 未就绪，请检查服务状态后重新连接");
+    }
+    module2.exports = { prepareMagpie, configuredPort, probe, releases, version };
+  }
+});
+
 // src/magpie/gateway.cjs
 var require_gateway = __commonJS({
   "src/magpie/gateway.cjs"(exports2, module2) {
@@ -70,7 +216,7 @@ var require_gateway = __commonJS({
     var run = promisify(execFile);
     var levels = /* @__PURE__ */ new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
     var defaultKey = "magpie-dsh-remote-tool";
-    var defaultPort = 3425;
+    var { configuredPort } = require_magpie();
     async function readJsonFile(path) {
       try {
         return JSON.parse(await readFile(path, "utf8"));
@@ -82,9 +228,6 @@ var require_gateway = __commonJS({
     }
     function integer(value) {
       return Number.isSafeInteger(value) && value > 0 ? value : void 0;
-    }
-    function validPort(port) {
-      return Number.isInteger(port) && port >= 1 && port <= 65535;
     }
     function exactModelId2(id) {
       return typeof id === "string" && id.length <= 512 && /^[^/\s*?\x00-\x1f]+\/[^\s*?\x00-\x1f]+$/u.test(id);
@@ -112,14 +255,10 @@ var require_gateway = __commonJS({
       return data;
     }
     async function openGateway2(portOverride, keyPath) {
-      let port = portOverride;
-      if (port === void 0) {
-        const xdg = process.env.XDG_CONFIG_HOME;
-        const config = isAbsolute(xdg || "") ? xdg : join2(homedir2(), ".config");
-        const settings = await readJsonFile(join2(config, "magpie", "settings.json"));
-        port = validPort(settings.port) ? settings.port : defaultPort;
-      }
-      if (!validPort(port)) throw new Error("Magpie 端口须为 1–65535");
+      const root = join2(homedir2(), ".local/share/dsh-remote");
+      const runtime = await readJsonFile(join2(root, "magpie-runtime.json"));
+      const settings = await readJsonFile(join2(root, "config.json"));
+      const port = await configuredPort(portOverride ?? settings.magpiePort, runtime.port);
       const origin = new URL("http://127.0.0.1:" + port);
       const hello = await fetchJson(new URL("/api/hello", origin)).catch(() => {
         throw new Error("未找到远端 Magpie。请确认网关正在运行并监听回环端口 " + port + "。");
@@ -155,9 +294,10 @@ var require_gateway = __commonJS({
         }
       };
     }
-    function magpie(args) {
+    async function magpie(args) {
       const env = { ...process.env, PATH: [process.env.PATH, join2(homedir2(), ".local", "bin")].filter(Boolean).join(":") };
-      return run("magpie", args, { env, timeout: 5500, maxBuffer: 512 * 1024 });
+      const runtime = await readJsonFile(join2(homedir2(), ".local/share/dsh-remote/magpie-runtime.json"));
+      return run(runtime.bin || "magpie", args, { env, timeout: 5500, maxBuffer: 512 * 1024 });
     }
     async function nativeControls2(gateway) {
       try {

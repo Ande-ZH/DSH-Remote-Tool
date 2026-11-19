@@ -1,5 +1,5 @@
-import { createElement as h } from 'react'
-
+import { createElement as h, useState } from 'react'
+import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 const endpoint = '/api/dsh-shared-remote/devices'
 
 export const statusText = {
@@ -7,10 +7,6 @@ export const statusText = {
 }
 export const pane = { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0 }
 export const bar = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 16px' }
-const buttonStyle = {
-  cursor: 'pointer', border: '1px solid currentColor', borderRadius: 6,
-  padding: '5px 10px', background: 'transparent', color: 'inherit',
-}
 
 export async function api(action, signal) {
   const timeout = AbortSignal.timeout(action?.type === 'magpie' ? 34_000 : 8000)
@@ -25,8 +21,14 @@ export async function api(action, signal) {
   return data
 }
 
-export function Button({ children, ...props }) {
-  return h('button', {
-    type: 'button', style: { ...buttonStyle, opacity: props.disabled ? 0.5 : 1 }, ...props,
-  }, children)
+export { Button, Input, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives'
+
+export function ConfirmButton({ children, title, description, onConfirm, ...props }) {
+  const [open, setOpen] = useState(false)
+  return h('span', null,
+    h(Button, { ...props, onClick: () => setOpen(true) }, children),
+    h(Modal, { open, title, description, closeLabel: '关闭', onClose: () => setOpen(false),
+      footer: h('div', { style: bar },
+        h(Button, { onClick: () => setOpen(false) }, '取消'),
+        h(Button, { variant: 'primary', onClick: () => { setOpen(false); void onConfirm() } }, '确认')) }))
 }

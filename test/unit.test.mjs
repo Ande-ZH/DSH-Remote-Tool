@@ -63,6 +63,7 @@ test('persists device settings and releases only the local tunnel', async (t) =>
   assert.equal(duplicate.status, 'rejected')
   const persisted = JSON.parse(await readFile(join(root, 'devices.json'), 'utf8'))
   assert.deepEqual(persisted, [{ id, label: 'dev', host: 'dev-ssh' }])
+  await assert.rejects(service.run({ type: 'target', id }), /未知设备操作/)
   const action = { type: 'connect', id }
   await Promise.all([service.run(action), service.run(action)])
   assert.equal(calls, 1)
@@ -80,14 +81,14 @@ test('persists device settings and releases only the local tunnel', async (t) =>
 test('the client entry registers the device panel and remote model settings', async () => {
   const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
   let client
-  runInNewContext(source, { window: { __ModuleLoader__: { load: (entry) => { client = entry } } } })
+  runInNewContext(source, { setTimeout: () => ({ unref() {} }), document: { createElement: () => ({}) }, window: { addEventListener: () => {}, __ModuleLoader__: { load: (entry) => { client = entry } } } })
   assert.equal(client.id, 'dsh-shared-remote')
   const registered = new Map()
   const plugin = client.factory((request) => {
-    assert.equal(request, 'react')
-    return {}
+    assert.ok(['react', 'react-dom', 'react/jsx-runtime'].includes(request))
+    return { createContext: () => ({}), forwardRef: value => value, memo: value => value, jsx: () => ({}), jsxs: () => ({}) }
   })
-  plugin.apply({ slots: {
+  plugin.apply({ effect: () => {}, slots: {
     inject: (_name, register) => register(),
     register: (metadata, component) => registered.set(metadata.name, { metadata, component }),
   } })

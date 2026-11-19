@@ -9,6 +9,8 @@ DeepSeek Harness Desktop 的 SSH 远程工作区插件。插件在 Linux 主机�
 - 在 DSH 侧栏保存 SSH 设备，并在 Desktop 中打开远端工作区。Desktop 缺少内嵌浏览器桥接时，可使用系统浏览器打开。
 - 同一 Linux 用户复用一套远端 DSH Host。连接该账号的多个客户端共享持久化工作区和会话。
 - 通过远端 Web Host 的插件管理器安装兼容的 DSH 插件。
+- 同一远端 Host 的多个客户端共享工作区主题、字体和字号，本机 Desktop 设置独立。
+- Magpie 随远端 Host 自动部署，或复用现有网关；界面使用 DSH 官方控件与主题色。
 - 查看和搜索远端 Magpie 模型目录，启用或停用符合条件的模型，并将选中模型同步到远端 DSH 模型选择器。
 - 将设备管理、SSH 传输、Magpie 集成和界面组件拆分为独立模块。
 
@@ -18,37 +20,55 @@ DeepSeek Harness Desktop 的 SSH 远程工作区插件。插件在 Linux 主机�
 
 - 支持插件的 DeepSeek Harness Desktop。要在 Desktop 内嵌远端工作区，还需要内嵌浏览器桥接。项目建议使用 Desktop `0.2.2-rc.5` 系列。
 - `PATH` 中可用的 OpenSSH 客户端 `ssh`。连接前需要验证服务器主机密钥。Desktop 使用非交互 SSH，如私钥有口令，请先加入 SSH agent。
-- 从源码打包需要 Node.js 和 npm。插件包声明的本地 Node.js 要求为 22 或更新版本。
+- 安装器和命令行客户端需要 Node.js 22 或更新版本及 npm；源码构建还需要安装开发依赖。
+- 终端安装 Desktop 插件前，在应用菜单「Manage dsh Command…／管理 dsh 命令」安装 Desktop 自带的 `dsh` 命令，至少启动一次 Desktop，然后完全退出应用。npm 版 DSH CLI 不能管理 Desktop profile；下方的归档安装方式无需该命令。
 
 **远端主机**
 
 - Linux、**Node.js 24.9 或更新版本**、npm，以及 util-linux 提供的 `flock`。非交互 SSH 环境必须能找到 `node`、`npm` 和 `flock`。
 - SSH 服务器允许向其回环地址进行本地 TCP 转发。
 - 首次连接时可以访问所配置的 npm 源，以安装 DSH `0.2.2-rc.1` 和 pnpm `11.25.0`。也可以按下文配置符合版本要求的预装可执行文件。
-- 如需管理模型，远端需运行 Magpie 网关，并能从 SSH 主机的 `127.0.0.1` 访问。
+- 首次连接默认准备 Magpie `0.1.4539` Linux 终端版（amd64/arm64），需能访问 GitHub Releases；已有可用网关会复用。可使用下文的预装路径或关闭自动部署。
 
 ## 安装与连接
 
-1. 在有 Node.js 和 npm 的机器上克隆仓库并打包。
+### 从 GitHub 一键安装
 
-   ```bash
-   git clone https://github.com/Ande-ZH/DSH-Remote-Tool.git
-   cd DSH-Remote-Tool
-   npm ci
-   npm pack
-   ```
+按上文准备好 Desktop 自带的 `dsh` 命令后，运行：
 
-   命令生成 `dsh-shared-remote-0.2.0.tgz`。如果在其他机器打包，请将归档复制到 Desktop 所在机器。
+```bash
+npx --yes --package=https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz dsh-remote install
+```
 
-2. 在 DeepSeek Harness Desktop 中打开「插件 → 添加已有插件」，输入归档的本机绝对路径，安装并启用。
-3. 先在终端使用 `ssh` 连接一次，核对服务器主机密钥指纹。插件使用本机 OpenSSH 配置、`known_hosts`、身份密钥和 SSH agent。以下示例假设已配置 `de-vps` 别名，用来检查非交互连接和远端依赖。
+GitHub 归档已包含构建结果，无需自行构建，也无需 npm 登录。安装器调用 DSH 插件管理器，并将插件归档保留在 `~/.dsh-remote/packages/`，清理 npx 缓存不会影响后续依赖安装。完成后重新打开 Desktop。
+
+若 `dsh` 不在 `PATH`，在命令末尾添加 `--dsh "/Desktop 自带的 dsh 绝对路径"`（Windows 使用自带的 `dsh.cmd`）。安装到已有 Web profile 时添加 `--profile web`。兼容性和安装提示按 DSH 插件管理器处理。
+
+当前**尚未发布到 npmjs.org**，GitHub 直装可立即使用。首次发布、后续 npm 一键安装与自动发布配置见[发布指南](docs/publishing.md)。
+
+### 归档安装
+
+需要自行打包时：
+
+```bash
+git clone https://github.com/Ande-ZH/DSH-Remote-Tool.git
+cd DSH-Remote-Tool
+npm ci
+npm pack
+```
+
+命令生成 `dsh-shared-remote-0.3.0.tgz`。在 Desktop 中打开「插件 → 添加已有插件」，输入归档的本机绝对路径，安装并启用。在其他机器打包时，先把归档复制到 Desktop 所在机器。
+
+### 连接主机
+
+1. 先在终端使用 `ssh` 连接一次，核对服务器主机密钥指纹。插件使用本机 OpenSSH 配置、`known_hosts`、身份密钥和 SSH agent。以下示例假设已配置 `de-vps` 别名，用来检查非交互连接和远端依赖。
 
    ```bash
    ssh -o BatchMode=yes de-vps 'node --version && npm --version && command -v flock'
    ```
 
-4. 在 Desktop 侧栏打开「SSH 远程 → 添加设备」，填写设备名称和 SSH 别名或 `user@host`。SSH 端口留空时使用 OpenSSH 配置，也可在这里填写可选的 Magpie 端口。
-5. 点击「连接」。首次连接会准备远端运行时并启动 Host。在远端 DSH 设置中配置模型，打开项目并创建会话。另一台电脑需要恢复使用时，安装同一插件并以同一 Linux 用户连接同一服务器。
+2. 在 Desktop 侧栏打开「SSH 远程 → 添加设备」，填写设备名称和 SSH 别名或 `user@host`。SSH 端口留空时使用 OpenSSH 配置，也可在这里填写可选的 Magpie 端口。
+3. 点击「连接」。首次连接会准备远端运行时并启动 Host 和 Magpie。在远端 DSH 设置中配置模型，打开项目并创建会话。另一台电脑需要恢复使用时，安装同一插件并以同一 Linux 用户连接同一服务器。
 
 ## 远端工作区与插件
 
@@ -62,7 +82,7 @@ DeepSeek Harness Desktop 的 SSH 远程工作区插件。插件在 Linux 主机�
 
 ## 管理远端 Magpie 模型
 
-1. 在远端启动 Magpie，使 SSH 主机能够通过 `127.0.0.1` 访问网关。插件优先使用设备填写的「Magpie 端口」。留空时读取 `$XDG_CONFIG_HOME/magpie/settings.json`。如果 `XDG_CONFIG_HOME` 未设置或不是绝对路径，则读取 `~/.config/magpie/settings.json`。未获取端口时使用 `3425`。
+1. 连接设备会自动准备并启动缺失的 Magpie；已有网关会复用。首次安装后需添加提供方或登录账号才能使用模型。网关通过远端 `127.0.0.1` 访问。插件优先使用设备填写的「Magpie 端口」。留空时读取 `$XDG_CONFIG_HOME/magpie/settings.json`。如果 `XDG_CONFIG_HOME` 未设置或不是绝对路径，则读取 `~/.config/magpie/settings.json`。未获取端口时使用 `3425`。
 2. 打开「设置 → 远程模型」并选择设备，或在 SSH 设备卡片中点击「Magpie 模型」。可按模型名称、ID 或提供方搜索。
 3. 勾选模型并点击「同步到远程 DSH」。如界面提示，请先连接远端 DSH Host。选中模型会出现在远端 DSH 原有的模型选择器中。取消勾选并再次同步可移除对应条目，空选择同步会移除插件管理的提供方。其他提供方和默认模型继续在 DSH 设置中管理。
 4. 对符合条件的单个模型使用「停用」或「恢复」。此操作会影响使用同一 Magpie 网关的所有客户端。启停需要 SSH 用户能够运行原生 `magpie` CLI，且 CLI 与运行中的网关使用同一用户和配置。已有通配规则需在 Magpie 中管理。Docker 网关如发布到主机回环端口，可以浏览和同步模型。
@@ -80,11 +100,22 @@ DeepSeek Harness Desktop 的 SSH 远程工作区插件。插件在 Linux 主机�
 }
 ```
 
+配置还支持 `magpieBin`（预装 Magpie 的绝对路径）、`magpiePort`（网关端口）和 `magpie: false`（关闭自动部署）。自动安装使用固定版本的官方终端版，不执行 SHA-256 校验；通过可执行文件和网关健康检查确认运行状态。Magpie 安装失败不阻止工作区打开，设备页显示原因，重新连接可重试。自动部署的服务名为 `dsh-remote-magpie`，无 systemd 用户服务时使用独立进程。断开 SSH 保留网关运行。
+
+远程工作区的内置主题、字体和字号通过 DSH Host 共享，同账号的多个客户端自动接收修改；本地 Desktop 外壳保持自身配置。第三方外观插件须使用 Host settings 才能同步自定义选项。
+
 两个可执行文件的 `--version` 输出必须分别与上述版本一致，pnpm 可执行文件的名称必须是 `pnpm`。可只配置其中一项，启动器会安装未配置的依赖。运行时配置在下次启动 Host 时生效。
 
 ## 命令行客户端
 
-插件包也包含 `dsh-remote`。在源码目录中可以通过 Node.js 运行。
+需要长期使用 `dsh-remote` 命令时，可以全局安装：
+
+```bash
+npm install --global https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz
+dsh-remote connect de-vps
+```
+
+在源码目录中也可以通过 Node.js 运行：
 
 ```bash
 node bin/dsh-remote.mjs connect de-vps
@@ -118,9 +149,10 @@ npm test
 
 | 路径 | 职责 |
 | --- | --- |
-| `src/plugin-host.mjs` | DSH Host 集成和请求路由 |
+| `src/plugin-host.mjs`、`src/services.mjs` | DSH Host 接入和功能调度 |
+| `bin/`、`src/install.mjs` | 命令行入口与插件安装 |
 | `src/devices.mjs`、`src/client.mjs` | 设备配置、连接和 SSH 传输 |
-| `src/host.cjs` | 远端运行时准备和 Host 生命周期 |
+| `src/host.cjs`、`src/runtime/` | 远端 Host 与 Magpie 部署及生命周期 |
 | `src/magpie/` | Magpie 网关操作和 DSH 模型同步 |
 | `src/ui/` | DSH 界面注册、设备面板和模型管理面板 |
 | `scripts/build.mjs`、`dist/` | 构建脚本及生成的客户端和远端代理 bundle |
@@ -130,6 +162,8 @@ npm test
 Linux 端到端测试使用隔离的 SSH 测试环境和真实 DSH Host。运行 `DSH_E2E_INSTALL=1 npm run test:e2e` 可为测试安装固定版本的 DSH，也可以通过 `DSH_E2E_BIN` 指定现有 DSH 可执行文件。设置 `DSH_E2E_MAGPIE_BIN` 指向原生 Magpie 可执行文件后，测试还会覆盖模型启停、同步和经网关转发的对话。安装包加载测试通过 `DSH_E2E_BIN` 和 `DSH_E2E_PLUGIN` 指定 DSH 与插件归档，然后运行 `npm run test:package`。项目已使用 DSH `0.2.2-rc.1` 和 Magpie `0.1.4539` 测试，Windows Desktop 界面尚未在 Windows 实机验证。
 
 更多源码参考和设计细节见[架构与上游源码核对](docs/architecture-audit.md)。
+
+模块边界、远端共享外观、Magpie 随 Host 部署及兼容性验收见[远端 Host 实施规划](docs/remote-host-plan.zh-CN.md)和[当前实现与验证](docs/implementation-status.zh-CN.md)。npm 发布流程见[发布指南](docs/publishing.md)。
 
 ## 许可证
 

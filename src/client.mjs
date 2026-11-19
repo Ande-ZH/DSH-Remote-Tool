@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { createServer, isIP } from 'node:net'
 import { createInterface } from 'node:readline'
 
-const hostProgram = new URL('./host.cjs', import.meta.url)
+const hostProgram = new URL('../dist/host.cjs', import.meta.url)
 const upload = [
   'umask 077',
   'base="$HOME/.local/share/dsh-remote"',
@@ -15,6 +15,7 @@ const upload = [
   'if ! cmp -s "$tmp" "$path"; then mv -f "$tmp" "$path" || exit 1; fi',
   'rm -f "$tmp" || exit 1',
   'if ! command -v node >/dev/null 2>&1; then echo "远端需要 Node.js 24.9 或更新版本" >&2; exit 1; fi',
+  'export NODE_USE_ENV_PROXY=1',
   'exec node "$path" connect',
 ].join('\n')
 
@@ -59,8 +60,8 @@ function completion(child) {
 
 async function bootstrap(options, args) {
   const bytes = await readFile(hostProgram)
-  const output = await runSshCommand(options, 'sh -c ' + shellQuote(upload), bytes, {
-    timeoutMs: 240_000, outputLimit: 64 * 1024, stderr: 'inherit', args,
+  const output = await runSshCommand(options, 'sh -c ' + shellQuote(upload + (options.magpiePort === undefined ? '' : ' ' + Number(options.magpiePort))), bytes, {
+    timeoutMs: 1200_000, outputLimit: 64 * 1024, stderr: 'inherit', args,
     failure: 'SSH 引导失败。请先用 ssh 确认已信任主机指纹、身份可登录，且远端 Node.js 可用。',
   })
   return parseEndpoint(output)
@@ -193,6 +194,6 @@ export async function connect(options) {
   }
   return {
     origin: browserUrl.origin, browserUrl: browserUrl.href, instance: endpoint.instance,
-    dshVersion: endpoint.dshVersion, close: tunnel.close, ended: tunnel.ended,
+    dshVersion: endpoint.dshVersion, magpie: endpoint.magpie, close: tunnel.close, ended: tunnel.ended,
   }
 }

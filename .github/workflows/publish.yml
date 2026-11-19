@@ -1,0 +1,41 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact package.json version to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'Ande-ZH/DSH-Remote-Tool' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Check requested version
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: node --input-type=module -e "import p from './package.json' with { type:'json' }; if(p.version !== process.env.EXPECTED_VERSION) throw Error('Requested version differs from package.json')"
+      - run: npm install --global npm@11
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: git diff --exit-code -- dist
+      - run: npm pack --ignore-scripts --silent
+      - name: Publish with npm trusted publishing
+        run: npm publish "dsh-shared-remote-$(node -p "require('./package.json').version").tgz" --provenance --access public

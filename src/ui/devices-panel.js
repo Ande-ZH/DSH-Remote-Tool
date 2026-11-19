@@ -1,5 +1,5 @@
 import { createElement as h, useEffect, useState } from 'react'
-import { api, bar, Button, pane, statusText } from './common.js'
+import { api, bar, Button, Input, ConfirmButton, pane, statusText } from './common.js'
 import { useDevices } from './devices.js'
 import { MagpiePanel } from './magpie-panel.js'
 import { RemoteGuest } from './workspace-guest.js'
@@ -85,7 +85,7 @@ export function DevicesPanel() {
         ['port', 'SSH 端口（留空使用 SSH 配置）', '22'],
         ['magpiePort', 'Magpie 端口（留空自动检测）', '3425'],
       ].map(([key, label, placeholder]) => h('label', { key, style: { display: 'grid', gap: 4 } },
-        label, h('input', {
+        label, h(Input, {
           type: key === 'port' || key === 'magpiePort' ? 'number' : 'text',
           min: 1, max: 65535,
           required: key === 'label' || key === 'host', placeholder, value: form[key],
@@ -96,7 +96,7 @@ export function DevicesPanel() {
         h(Button, { onClick: () => setForm(null), disabled: busy }, '取消'))),
     !form && devices.length === 0 && h('p', null, '添加已配置密钥并验证过主机指纹的 SSH 设备。'),
     h('ul', { style: { listStyle: 'none', padding: 0, maxWidth: 760 } },
-      ...devices.map((device) => h('li', { key: device.id, style: { borderBottom: '1px solid #8884', padding: '12px 0' } },
+      ...devices.map((device) => h('li', { key: device.id, style: { borderBottom: '0.5px solid var(--dsw-alias-border-l1)', padding: '12px 0' } },
         h('div', { style: { ...bar, padding: 0 } },
           h('strong', null, device.label),
           h('code', null, device.host + (device.port ? ' · ' + device.port : '')),
@@ -111,10 +111,10 @@ export function DevicesPanel() {
           onClick: () => setForm({ ...device, port: String(device.port ?? ''), magpiePort: String(device.magpiePort ?? '') }),
           disabled: busy,
         }, '编辑'),
-          h(Button, {
-            onClick: () => {
-              if (window.confirm('移除这条设备配置？')) void update({ type: 'remove', id: device.id })
-            }, disabled: busy,
+          h(ConfirmButton, {
+            title: '移除设备', description: '移除这条设备配置？远端工作区和数据会保留。',
+            onConfirm: () => update({ type: 'remove', id: device.id }), disabled: busy,
           }, '移除')),
+        device.magpie?.status === 'error' && h('p', { role: 'status' }, '工作区可用 · ' + device.magpie.error + '。重新连接可重试。'),
         device.error && h('p', { role: 'status', style: { margin: '6px 0 0' } }, device.error)))))
 }

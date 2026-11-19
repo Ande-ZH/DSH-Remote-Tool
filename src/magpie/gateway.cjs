@@ -8,7 +8,7 @@ const { loopback } = require('./loopback.cjs')
 const run = promisify(execFile)
 const levels = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 const defaultKey = 'magpie-dsh-remote-tool'
-const defaultPort = 3425
+const { configuredPort } = require('../runtime/magpie.cjs')
 
 async function readJsonFile(path) {
   try {
@@ -22,10 +22,6 @@ async function readJsonFile(path) {
 
 function integer(value) {
   return Number.isSafeInteger(value) && value > 0 ? value : undefined
-}
-
-function validPort(port) {
-  return Number.isInteger(port) && port >= 1 && port <= 65535
 }
 
 function exactModelId(id) {
@@ -58,14 +54,10 @@ async function fetchJson(url, options = {}) {
 }
 
 async function openGateway(portOverride, keyPath) {
-  let port = portOverride
-  if (port === undefined) {
-    const xdg = process.env.XDG_CONFIG_HOME
-    const config = isAbsolute(xdg || '') ? xdg : join(homedir(), '.config')
-    const settings = await readJsonFile(join(config, 'magpie', 'settings.json'))
-    port = validPort(settings.port) ? settings.port : defaultPort
-  }
-  if (!validPort(port)) throw new Error('Magpie 端口须为 1–65535')
+  const root = join(homedir(), '.local/share/dsh-remote')
+  const runtime = await readJsonFile(join(root, 'magpie-runtime.json'))
+  const settings = await readJsonFile(join(root, 'config.json'))
+  const port = await configuredPort(portOverride ?? settings.magpiePort, runtime.port)
 
   const origin = new URL('http://127.0.0.1:' + port)
   const hello = await fetchJson(new URL('/api/hello', origin)).catch(() => {
@@ -102,9 +94,10 @@ async function openGateway(portOverride, keyPath) {
   }
 }
 
-function magpie(args) {
+async function magpie(args) {
   const env = { ...process.env, PATH: [process.env.PATH, join(homedir(), '.local', 'bin')].filter(Boolean).join(':') }
-  return run('magpie', args, { env, timeout: 5500, maxBuffer: 512 * 1024 })
+  const runtime = await readJsonFile(join(homedir(), '.local/share/dsh-remote/magpie-runtime.json'))
+  return run(runtime.bin || 'magpie', args, { env, timeout: 5500, maxBuffer: 512 * 1024 })
 }
 
 async function nativeControls(gateway) {

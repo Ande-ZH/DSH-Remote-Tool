@@ -15,6 +15,12 @@ export const name = id
 export const inject = ['slots']
 
 export function apply(ctx) {
+  ctx.effect(() => {
+    const style = document.createElement('style')
+    style.textContent = __dshRemoteCss
+    document.head.append(style)
+    return () => style.remove()
+  }, id + ': styles')
   const slots = ctx.slots ?? ctx.get('slots')
   slots.inject('sidebar.panellist', () => slots.register({
     name: 'sidebar.panellist', id, order: 45, label: () => 'SSH 远程',

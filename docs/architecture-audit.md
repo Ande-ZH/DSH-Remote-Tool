@@ -8,7 +8,7 @@
 | [dsh-ssh](https://github.com/longguanhong0755/dsh-ssh) | `860c8007401ffd28b5ee95d1f413f2d9ec6da87b` | `lib/remote/units.js` 启动远端 DSH Web。`lib/bridge.js` 与 `lib/bridge/{lifecycle,state,sessions}.js` 维护本机日志和本机到远端的会话映射。 |
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | `2e39e70496aa02986ca6a820c5d497e816b69d7e` | `packages/bundle/web-app/cordis.patch.yml` 提供完整 Web 工作区和插件管理。桌面插件入口采用对应官方客户端 slot，内嵌页使用 `apps/desktop/src/browser-guests.ts` 的租约。执行测试使用 npm 上可取得的 DSH `0.2.2-rc.1`。 |
 
-本项目实现独立。参考了 ZCode 的 SSH 转发、重复连接复用和远端生命周期设计。ZCode 许可证为 Apache-2.0。引用的两个 DSH 上游仓库采用 MIT。运行时由目标 Linux 主机从其配置的 npm 源安装，项目归档不携带上游软件或第三方二进制。
+本项目实现独立。参考了 ZCode 的 SSH 转发、重复连接复用和远端生命周期设计。ZCode 许可证为 Apache-2.0。引用的两个 DSH 上游仓库采用 MIT。DSH 运行时由目标 Linux 主机从其配置的 npm 源安装，Magpie 从固定版本的官方发布地址下载；归档不携带远端运行时二进制。客户端构建使用 DSH 官方 UI primitives，许可见 [DSH-LICENSE.txt](DSH-LICENSE.txt)。
 
 ## 连接流程
 

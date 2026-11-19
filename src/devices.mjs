@@ -2,9 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { connect, sshArguments } from './client.mjs'
-import { manageMagpie } from './magpie/service.mjs'
 
-export function deviceService(directory, openConnection = connect, magpieOperation = manageMagpie) {
+export function deviceService(directory, openConnection = connect) {
   const file = join(directory, 'devices.json')
   const connections = new Map()
   const lifetime = new AbortController()
@@ -44,7 +43,7 @@ export function deviceService(directory, openConnection = connect, magpieOperati
     const item = { status: 'connecting', controller: new AbortController() }
     connections.set(device.id, item)
     const signal = item.controller.signal
-    void openConnection({ host: device.host, port: device.port, batch: true, signal }).then((connection) => {
+    void openConnection({ host: device.host, port: device.port, magpiePort: device.magpiePort, batch: true, signal }).then((connection) => {
       if (signal.aborted) { connection.close(); return }
       item.status = 'connected'
       item.connection = connection
@@ -65,7 +64,7 @@ export function deviceService(directory, openConnection = connect, magpieOperati
     return {
       devices: devices.map((device) => {
         const connection = connections.get(device.id)
-        return { ...device, status: connection?.status ?? 'disconnected', error: connection?.error }
+        return { ...device, status: connection?.status ?? 'disconnected', error: connection?.error, magpie: connection?.connection?.magpie }
       }),
     }
   }
@@ -118,8 +117,8 @@ export function deviceService(directory, openConnection = connect, magpieOperati
         if (!connection) throw new Error('请先连接远端 Host')
         return { browserUrl: connection.browserUrl, instance: connection.instance }
       }
-      case 'magpie':
-        return { device, connection: connections.get(device.id) }
+      case 'target':
+        return { device, connection: connections.get(device.id), signal: lifetime.signal }
       default:
         throw new Error('未知设备操作')
     }
@@ -129,16 +128,7 @@ export function deviceService(directory, openConnection = connect, magpieOperati
     run(action, signal) {
       const result = operations.then(() => handle(action))
       operations = result.catch(() => {})
-      if (action?.type === 'magpie') {
-        return result.then(({ device, connection }) => {
-          const signals = [lifetime.signal]
-          if (signal) signals.push(signal)
-          if (action.operation === 'sync' && connection) signals.push(connection.controller.signal)
-          return magpieOperation({
-            device, instance: connection?.connection?.instance, signal: AbortSignal.any(signals),
-          }, action)
-        })
-      }
+
       return result
     },
     close() {

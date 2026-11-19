@@ -1,6 +1,6 @@
 {
   "name": "dsh-shared-remote",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -9,16 +9,44 @@
     "dsh-remote": "./bin/dsh-remote.mjs"
   },
   "scripts": {
-    "test": "node --test test/unit.test.mjs",
+    "test": "node --test test/unit.test.mjs test/runtime.test.mjs",
     "test:e2e": "node --test test/ssh.e2e.test.mjs",
     "test:package": "node --test test/plugin.e2e.test.mjs",
     "build": "node scripts/build.mjs",
     "prepack": "npm run build"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-util-code-language": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-util-file-drag": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-util-workspace-path": "0.2.2-rc.1",
+    "@shikijs/langs": "^4.6.0",
+    "anser": "^2.3.5",
+    "clsx": "^2.1.1",
+    "diff": "^9.0.0",
     "esbuild": "^0.28.2",
+    "immer": "^11.2.10",
+    "katex": "^0.18.10",
+    "mdast-util-from-markdown": "^2.1.0",
+    "mdast-util-gfm": "^3.1.0",
+    "mdast-util-math": "^3.0.0",
+    "micromark-core-commonmark": "^2.0.4",
+    "micromark-extension-gfm": "^3.0.0",
+    "micromark-extension-math": "^3.1.0",
+    "micromark-factory-space": "^2.1.0",
+    "micromark-util-character": "^2.1.1",
+    "micromark-util-classify-character": "^2.0.1",
+    "micromark-util-decode-string": "^2.0.1",
+    "micromark-util-sanitize-uri": "^2.0.1",
+    "micromark-util-symbol": "^2.0.1",
+    "micromark-util-types": "^2.0.3",
+    "shiki": "^4.6.0",
+    "simple-icons": "^16.31.0",
     "ssh2": "^1.17.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zustand": "^5.1.0"
   },
   "description": "SSH shared workspaces for DeepSeek Harness Desktop",
   "main": "./src/plugin-host.mjs",
@@ -53,5 +81,23 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ande-ZH/DSH-Remote-Tool.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "homepage": "https://github.com/Ande-ZH/DSH-Remote-Tool#readme",
+  "bugs": {
+    "url": "https://github.com/Ande-ZH/DSH-Remote-Tool/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "dsh",
+    "ssh",
+    "remote-workspace",
+    "magpie"
+  ],
+  "dependencies": {
+    "cross-spawn": "^7.0.6"
   }
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -12,14 +12,26 @@ const archive = process.env.DSH_E2E_PLUGIN
 
 test('the packaged bundle activates through the published DSH plugin loader', {
   skip: (!dsh || !archive) && 'Set DSH_E2E_BIN and DSH_E2E_PLUGIN',
-  timeout: 45_000,
+  timeout: 180_000,
 }, async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'dsh-addon-package-'))
   const env = { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
   t.after(() => rm(home, { recursive: true, force: true }))
-  execFileSync(resolve(dsh), ['plugin', '--profile', 'web', 'add', resolve(archive)], {
-    env, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000,
+  const client = await mkdtemp(join(tmpdir(), 'dsh-addon-npm-client-'))
+  t.after(() => rm(client, { recursive: true, force: true }))
+  execFileSync('npm', ['install', '--prefix', client, '--ignore-scripts', '--no-audit', '--no-fund', resolve(archive)], {
+    stdio: ['ignore', 'pipe', 'pipe'], timeout: 90_000,
   })
+  execFileSync(process.execPath, [join(client, 'node_modules/dsh-shared-remote/bin/dsh-remote.mjs'),
+    'install', '--dsh', resolve(dsh), '--profile', 'web'], {
+    env: { ...env, HOME: client, USERPROFILE: client }, stdio: ['ignore', 'pipe', 'pipe'], timeout: 90_000,
+  })
+  const profile = JSON.parse(await readFile(join(home, 'profiles/web/package.json'), 'utf8'))
+  const installedArchive = profile.dependencies['dsh-shared-remote'].slice('file:'.length)
+  await access(installedArchive)
+  // The CLI can disappear from an npm/npx cache after installation.
+  await rm(join(client, 'node_modules'), { recursive: true, force: true })
+  await access(installedArchive)
   const host = spawn(resolve(dsh), ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
     env, stdio: ['ignore', 'pipe', 'ignore'],
   })

@@ -11,6 +11,8 @@ An SSH remote workspace plugin for DeepSeek Harness Desktop. It starts and reuse
 - Connect to a saved SSH host from the DSH sidebar and open its remote workspace in Desktop. A system-browser option is available when the Desktop browser bridge is unavailable.
 - Reuse one remote DSH Host per Linux user. Different clients connecting to that account share its persisted workspace and sessions.
 - Install compatible DSH plugins in the remote Web Host through its plugin manager.
+- Share the remote workspace's theme, font, and font size across clients connected to the same Host. Local Desktop settings remain separate.
+- Provision Magpie alongside the remote Host, or reuse an existing gateway. Manage models through DSH's own UI components.
 - Browse and search a remote Magpie gateway's model catalog, enable or disable eligible models, and sync selected models into the remote DSH model picker.
 - Keep device management, SSH transport, Magpie integration, and UI components in separate modules.
 
@@ -20,37 +22,55 @@ An SSH remote workspace plugin for DeepSeek Harness Desktop. It starts and reuse
 
 - DeepSeek Harness Desktop with plugin support. An embedded-browser bridge is needed to show the remote workspace inside Desktop. The project recommends the Desktop `0.2.2-rc.5` series for this integration.
 - OpenSSH client (`ssh`) on `PATH`. Configure and verify the server's host key before connecting. Desktop connections use non-interactive SSH, so add a passphrase-protected key to an SSH agent first.
-- Node.js and npm to build the package from source. The package declares Node.js 22 or newer for local execution.
+- Node.js 22 or newer and npm for the installer and command-line client. Source builds also require development dependencies.
+- For terminal installation into Desktop, install its bundled `dsh` command through the application's **Manage dsh Command…** menu, open Desktop once, then fully quit it. The npm version of DSH CLI cannot manage the Desktop profile. The archive installation option below does not require the bundled command.
 
 **Remote host**
 
 - Linux, Node.js **24.9 or newer**, npm, and `flock` from util-linux. `node`, `npm`, and `flock` must be available in a non-interactive SSH session.
 - An SSH server that permits local TCP forwarding to its loopback interface.
 - On first connection, access to the configured npm registry to install DSH `0.2.2-rc.1` and pnpm `11.25.0`, or matching preinstalled executables configured as described below.
-- For model management, a running Magpie gateway accessible on the SSH host's `127.0.0.1` interface.
+- First connections also prepare Magpie `0.1.4539` for Linux amd64/arm64 and need GitHub Releases access. Existing gateways are reused; preinstalled binaries and disabling provisioning are supported.
 
 ## Install and connect
 
-1. Clone the repository and build the plugin package on a machine with Node.js and npm.
+### One-command installation from GitHub
 
-   ```bash
-   git clone https://github.com/Ande-ZH/DSH-Remote-Tool.git
-   cd DSH-Remote-Tool
-   npm ci
-   npm pack
-   ```
+After preparing Desktop's bundled `dsh` command as described above, run:
 
-   This produces `dsh-shared-remote-0.2.0.tgz`. If the package was built on another machine, copy it to the Desktop machine.
+```bash
+npx --yes --package=https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz dsh-remote install
+```
 
-2. In DeepSeek Harness Desktop, open **Plugins → Add existing plugin** (`插件 → 添加已有插件`), enter the absolute path to the archive, install it, and enable it.
-3. Connect once using your terminal's `ssh` command and verify the server's host-key fingerprint. The plugin uses your OpenSSH configuration, `known_hosts`, identities, and SSH agent. For example, after configuring the alias `de-vps`, check non-interactive access and remote dependencies.
+The GitHub archive contains built bundles, so installation needs neither a source build nor npm login. The installer delegates installation to DSH's plugin manager and retains its package archive in `~/.dsh-remote/packages/`, independent of the npx cache. Reopen Desktop after installation.
+
+If the bundled command is not on `PATH`, append `--dsh "/absolute/path/to/dsh"` (on Windows, the bundled `dsh.cmd`). For an existing Web profile, append `--profile web`. Follow DSH's plugin compatibility and installation prompts.
+
+The package has **not yet been published to npmjs.org**. GitHub installation works now; registry installation and trusted publishing are documented in [Publishing](docs/publishing.md).
+
+### Archive installation
+
+To build an archive yourself:
+
+```bash
+git clone https://github.com/Ande-ZH/DSH-Remote-Tool.git
+cd DSH-Remote-Tool
+npm ci
+npm pack
+```
+
+This produces `dsh-shared-remote-0.3.0.tgz`. In DeepSeek Harness Desktop, open **Plugins → Add existing plugin** (`插件 → 添加已有插件`), enter the archive's absolute path, install it, and enable it. Copy the archive to the Desktop machine if built elsewhere.
+
+### Connect a host
+
+1. Connect once using your terminal's `ssh` command and verify the server's host-key fingerprint. The plugin uses your OpenSSH configuration, `known_hosts`, identities, and SSH agent. For example, after configuring the alias `de-vps`, check non-interactive access and remote dependencies.
 
    ```bash
    ssh -o BatchMode=yes de-vps 'node --version && npm --version && command -v flock'
    ```
 
-4. In Desktop, open **SSH Remote** (`SSH 远程`) in the sidebar and choose **Add device** (`添加设备`). Enter a name and an SSH alias or `user@host`. Leave the SSH port empty to use your SSH configuration. The optional Magpie port can also be set here.
-5. Select **Connect** (`连接`). The first connection prepares the remote runtime and starts the Host. Configure a model in the remote DSH settings, open a project, and start a session. To resume from another computer, install the plugin there and connect to the same server as the same Linux user.
+2. In Desktop, open **SSH Remote** (`SSH 远程`) in the sidebar and choose **Add device** (`添加设备`). Enter a name and an SSH alias or `user@host`. Leave the SSH port empty to use your SSH configuration. The optional Magpie port can also be set here.
+3. Select **Connect** (`连接`). The first connection prepares the remote runtime and starts the Host and Magpie. Configure a model in the remote DSH settings, open a project, and start a session. To resume from another computer, install the plugin there and connect to the same server as the same Linux user.
 
 ## Remote workspaces and plugins
 
@@ -64,7 +84,7 @@ Clients connecting as the same Linux user share the remote Host's owner access. 
 
 ## Manage remote Magpie models
 
-1. Start Magpie on the remote machine and make its gateway reachable from that machine at `127.0.0.1`. The plugin uses the device's **Magpie port** if set. Otherwise it reads `$XDG_CONFIG_HOME/magpie/settings.json`, or `~/.config/magpie/settings.json` when `XDG_CONFIG_HOME` is unset or not absolute, and falls back to port `3425`.
+1. Connecting prepares and starts Magpie when needed, or reuses an existing gateway on `127.0.0.1`. Add providers or sign in after a fresh installation to make models available. The plugin uses the device's **Magpie port** if set. Otherwise it reads `$XDG_CONFIG_HOME/magpie/settings.json`, or `~/.config/magpie/settings.json` when `XDG_CONFIG_HOME` is unset or not absolute, and falls back to port `3425`.
 2. Open **Settings → Remote Models** (`设置 → 远程模型`) and choose a device, or select **Magpie Models** (`Magpie 模型`) on its SSH device card. Search by model name, ID, or provider.
 3. Select models and click **Sync to remote DSH** (`同步到远程 DSH`). Connect the remote DSH Host first if prompted. The selected models appear in its existing model picker. Uncheck entries and sync again to remove them from the plugin-managed provider. Syncing an empty selection removes that provider. Other providers and the default model remain under DSH settings.
 4. Use **Disable** (`停用`) or **Restore** (`恢复`) for eligible individual models. This changes the gateway's availability for every client using that Magpie instance. Controls require a native `magpie` CLI accessible to the SSH user, with the running gateway and CLI using the same configuration and user. Existing wildcard rules must be managed in Magpie. A gateway exposed from Docker on the host's loopback port can be browsed and synced.
@@ -84,9 +104,20 @@ To avoid downloading the runtime during first connection, install exactly DSH `0
 
 Both executables must report the expected version with `--version`. The pnpm executable must be named `pnpm`. Either setting may be omitted to let the launcher install that dependency. Runtime configuration takes effect the next time a Host is started.
 
+The same configuration accepts `magpieBin` (an absolute preinstalled executable path), `magpiePort`, and `magpie: false` to disable provisioning. Provisioning checks executable availability and gateway health without SHA-256 verification. A Magpie failure leaves the DSH workspace available; the device page reports the failure and reconnecting retries it. The managed user service is `dsh-remote-magpie`, with a detached-process fallback. Disconnecting SSH leaves the gateway running.
+
+Built-in workspace appearance uses DSH Host settings and updates across authenticated clients. Custom appearance plugins need Host-backed settings for their own options. The local Desktop shell keeps its separate settings.
+
 ## Command-line client
 
-The package also includes `dsh-remote`. From a source checkout, run the command with Node.js.
+To keep `dsh-remote` available globally:
+
+```bash
+npm install --global https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz
+dsh-remote connect de-vps
+```
+
+From a source checkout, run it with Node.js:
 
 ```bash
 node bin/dsh-remote.mjs connect de-vps
@@ -120,9 +151,10 @@ The source is divided by responsibility.
 
 | Path | Responsibility |
 | --- | --- |
-| `src/plugin-host.mjs` | DSH Host integration and request routing |
+| `src/plugin-host.mjs`, `src/services.mjs` | DSH Host integration and service composition |
+| `bin/`, `src/install.mjs` | CLI and plugin installation |
 | `src/devices.mjs`, `src/client.mjs` | Saved devices, connections, and SSH transport |
-| `src/host.cjs` | Remote runtime setup and Host lifecycle |
+| `src/host.cjs`, `src/runtime/` | Remote Host and Magpie provisioning and lifecycle |
 | `src/magpie/` | Magpie gateway operations and DSH model synchronization |
 | `src/ui/` | DSH UI registration, device panel, and model management panel |
 | `scripts/build.mjs`, `dist/` | Build script and generated client and remote agent bundles |
@@ -132,6 +164,8 @@ Run `npm run build` after changing the UI or remote Magpie modules. `npm pack` a
 The Linux end-to-end test uses isolated SSH infrastructure and a real DSH Host. To install the pinned DSH runtime for the test, run `DSH_E2E_INSTALL=1 npm run test:e2e`. Alternatively, set `DSH_E2E_BIN` to an existing DSH executable. Set `DSH_E2E_MAGPIE_BIN` to a native Magpie executable to include model controls, synchronization, and a routed conversation. The package loader test uses `DSH_E2E_BIN` and `DSH_E2E_PLUGIN` with `npm run test:package`. The project has been tested with DSH `0.2.2-rc.1` and Magpie `0.1.4539`; the Windows Desktop UI has not yet been tested on a physical Windows client.
 
 See [architecture and upstream audit](docs/architecture-audit.md) for source references and design details.
+
+See the [remote Host plan](docs/remote-host-plan.zh-CN.md), [implementation and verification status](docs/implementation-status.zh-CN.md), and [publishing guide](docs/publishing.md) for details.
 
 ## License
 
