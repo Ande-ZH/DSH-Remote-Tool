@@ -1,0 +1,51 @@
+{
+  "name": "dsh-shared-remote",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "dsh-remote": "./bin/dsh-remote.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/unit.test.mjs",
+    "test:e2e": "node --test test/ssh.e2e.test.mjs",
+    "test:package": "node --test test/plugin.e2e.test.mjs"
+  },
+  "devDependencies": {
+    "ssh2": "^1.17.0",
+    "ws": "^8.21.0"
+  },
+  "description": "SSH shared workspaces for DeepSeek Harness Desktop",
+  "main": "./src/plugin-host.mjs",
+  "files": [
+    "src",
+    "bin",
+    "cordis.patch.yml",
+    "README.md",
+    "docs"
+  ],
+  "exports": {
+    ".": "./src/plugin-host.mjs",
+    "./client": "./src/plugin-client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ],
+      "platform": "web"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ande-ZH/DSH-Remote-Tool.git"
+  }
+}
