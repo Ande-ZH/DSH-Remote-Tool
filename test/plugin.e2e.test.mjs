@@ -57,5 +57,7 @@ test('the packaged bundle activates through the published DSH plugin loader', {
   assert.ok(advertised, 'DSH registers the addon client in the real web module graph')
   const bundle = await fetch(new URL(advertised.replaceAll('\\u0026', '&').replaceAll('&amp;', '&'), entry.origin), { headers })
   assert.equal(bundle.status, 200)
-  assert.match(await bundle.text(), /SSH 远程工作区/)
+  const clientSource = await bundle.text()
+  assert.ok(clientSource.includes('SSH 远程工作区'), 'DSH serves the SSH workspace panel')
+  assert.ok(clientSource.includes('远程模型'), 'DSH serves the remote model settings')
 })

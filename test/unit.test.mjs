@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
 import { parseEndpoint, sshArguments } from '../src/client.mjs'
+import { magpieRequest } from '../src/magpie/service.mjs'
 
 const endpoint = {
   protocol: 1, port: 38081, token: 'launch-token_1234567890',
@@ -76,8 +77,8 @@ test('persists device settings and releases only the local tunnel', async (t) =>
   await reloaded.close()
 })
 
-test('the client entry registers a DSH sidebar item and matches it to its own panel', async () => {
-  const source = await readFile(new URL('../src/plugin-client.js', import.meta.url), 'utf8')
+test('the client entry registers the device panel and remote model settings', async () => {
+  const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
   let client
   runInNewContext(source, { window: { __ModuleLoader__: { load: (entry) => { client = entry } } } })
   assert.equal(client.id, 'dsh-shared-remote')
@@ -95,4 +96,19 @@ test('the client entry registers a DSH sidebar item and matches it to its own pa
   assert.equal(sidebar.metadata.id, panel.metadata.key)
   assert.equal(sidebar.metadata.label(), 'SSH 远程')
   assert.equal(typeof panel.component, 'function')
+  const settings = registered.get('settings.section')
+  assert.equal(settings.metadata.label(), '远程模型')
+  assert.equal(typeof settings.component, 'function')
+})
+
+test('Magpie request uses the saved device port and the current DSH instance', () => {
+  const device = { host: 'fixture', port: 2222, magpiePort: 3428 }
+  assert.deepEqual(magpieRequest({ operation: 'list', port: 1 }, device), {
+    operation: 'list', port: 3428, instance: undefined,
+  })
+  assert.deepEqual(magpieRequest({ operation: 'sync', models: ['vendor/chat', 'vendor/chat'] }, device, 'current'), {
+    operation: 'sync', port: 3428, instance: 'current', models: ['vendor/chat'],
+  })
+  assert.throws(() => magpieRequest({ operation: 'sync', models: [] }, device), /先连接/)
+  assert.throws(() => magpieRequest({ operation: 'setEnabled', model: '', enabled: false }, device), /无效/)
 })

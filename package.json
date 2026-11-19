@@ -1,6 +1,6 @@
 {
   "name": "dsh-shared-remote",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -11,9 +11,12 @@
   "scripts": {
     "test": "node --test test/unit.test.mjs",
     "test:e2e": "node --test test/ssh.e2e.test.mjs",
-    "test:package": "node --test test/plugin.e2e.test.mjs"
+    "test:package": "node --test test/plugin.e2e.test.mjs",
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "ssh2": "^1.17.0",
     "ws": "^8.21.0"
   },
@@ -24,11 +27,13 @@
     "bin",
     "cordis.patch.yml",
     "README.md",
-    "docs"
+    "docs",
+    "dist",
+    "scripts"
   ],
   "exports": {
     ".": "./src/plugin-host.mjs",
-    "./client": "./src/plugin-client.js",
+    "./client": "./dist/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },

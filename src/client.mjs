@@ -59,30 +59,42 @@ function completion(child) {
 
 async function bootstrap(options, args) {
   const bytes = await readFile(hostProgram)
+  const output = await runSshCommand(options, 'sh -c ' + shellQuote(upload), bytes, {
+    timeoutMs: 240_000, outputLimit: 64 * 1024, stderr: 'inherit', args,
+    failure: 'SSH 引导失败。请先用 ssh 确认已信任主机指纹、身份可登录，且远端 Node.js 可用。',
+  })
+  return parseEndpoint(output)
+}
+
+export async function runSshCommand(options, command, input, {
+  timeoutMs, outputLimit, failure, stderr = 'ignore', args = sshArguments(options),
+}) {
   options.signal?.throwIfAborted()
   const child = spawn('ssh', [
-    ...args, '-o', 'ClearAllForwardings=yes', options.host, 'sh -c ' + shellQuote(upload),
-  ], { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true })
+    ...args, '-o', 'ClearAllForwardings=yes', options.host, command,
+  ], { stdio: ['pipe', 'pipe', stderr], windowsHide: true })
   const ended = completion(child)
   const abort = () => child.kill()
   options.signal?.addEventListener('abort', abort, { once: true })
-  const timeout = setTimeout(abort, 240_000)
+  const timeout = setTimeout(abort, timeoutMs)
   try {
     child.stdin.on('error', () => {})
-    child.stdin.end(bytes)
-    let result = ''
+    child.stdin.end(input)
+    let size = 0
+    const chunks = []
     for await (const chunk of child.stdout) {
-      result += chunk.toString('utf8')
-      if (result.length > 64 * 1024) {
+      size += chunk.length
+      if (size > outputLimit) {
         child.kill()
-        throw new Error('远端握手输出超过限制')
+        throw new Error('远端响应超过大小限制')
       }
+      chunks.push(chunk)
     }
     const { code, error } = await ended
     options.signal?.throwIfAborted()
     if (error?.code === 'ENOENT') throw new Error('本机找不到 OpenSSH 客户端 ssh')
-    if (code !== 0) throw new Error('SSH 引导失败。请先用 ssh 确认已信任主机指纹、身份可登录，且远端 Node.js 可用。')
-    return parseEndpoint(result)
+    if (code !== 0) throw new Error(failure)
+    return Buffer.concat(chunks, size).toString('utf8')
   } finally {
     clearTimeout(timeout)
     options.signal?.removeEventListener('abort', abort)

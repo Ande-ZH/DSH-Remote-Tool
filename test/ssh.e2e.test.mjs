@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { execFileSync, spawn } from 'node:child_process'
 import { randomUUID, generateKeyPairSync } from 'node:crypto'
 import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { connect as socketConnect } from 'node:net'
+import { createServer as createSocketServer, connect as socketConnect } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { setTimeout as pause } from 'node:timers/promises'
@@ -12,8 +12,10 @@ import test from 'node:test'
 import ssh2 from 'ssh2'
 import WebSocket from 'ws'
 import { connect } from '../src/client.mjs'
+import { manageMagpie } from '../src/magpie/service.mjs'
 
 const dsh = process.env.DSH_E2E_BIN
+const magpie = process.env.DSH_E2E_MAGPIE_BIN
 
 async function listen(server) {
   server.listen(0, '127.0.0.1')
@@ -40,7 +42,9 @@ function fixtureModel(gate, seen) {
     let text = ''
     for await (const chunk of request) text += chunk
     const body = JSON.parse(text)
-    const answer = text.includes('second-user-prompt') ? 'fixture-answer-two' : 'fixture-answer-one'
+    const answer = body.model === 'dsh-remote-fixture'
+      ? 'fixture-magpie-answer'
+      : text.includes('second-user-prompt') ? 'fixture-answer-two' : 'fixture-answer-one'
     if (text.includes('first-user-prompt') && answer.endsWith('one')) {
       seen.resolve()
       await gate.promise
@@ -113,7 +117,8 @@ function fixtureSsh(home, modelPort, keys) {
         const child = spawn('sh', ['-c', command], {
           cwd: home,
           env: {
-            ...process.env, HOME: home, PATH: dirname(process.execPath) + ':' + process.env.PATH,
+            ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'),
+            PATH: dirname(process.execPath) + ':' + process.env.PATH,
             DSH_TELEMETRY_DISABLED: '1', DSH_PERMISSION_MODE: 'workspace-write',
             DEEPSEEK_API_KEY: 'local-fixture-key', DEEPSEEK_BASE_URL: 'http://127.0.0.1:' + modelPort,
           },
@@ -161,6 +166,65 @@ async function rpc(client, name, args, expectedStatus = 200, timeout = 6000) {
   const { result } = await response.json()
   assert.equal(result?.ok, true, name + ' ' + JSON.stringify(result))
   return result.value
+}
+
+async function startMagpie(t, home, bin, modelPort) {
+  await symlink(resolve(magpie), join(bin, 'magpie'))
+  const reservation = createSocketServer()
+  const port = await listen(reservation)
+  await new Promise(resolve => reservation.close(resolve))
+  const env = {
+    ...process.env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'),
+    MAGPIE_ADDR: '127.0.0.1:' + port, MAGPIE_NO_ACCOUNTS: '1',
+  }
+  execFileSync(resolve(magpie), [
+    'provider', 'add', 'DSH fixture', 'id=fixture', 'url=http://127.0.0.1:' + modelPort + '/v1',
+    'key=test-fixture', 'list=off', 'models=dsh-remote-fixture',
+  ], { env, timeout: 10_000 })
+  const child = spawn(resolve(magpie), ['serve'], { env, stdio: 'ignore' })
+  const closed = once(child, 'exit')
+  t.after(async () => { child.kill(); await closed })
+  await waitFor(
+    () => fetch('http://127.0.0.1:' + port + '/api/hello').then(response => response.json()).catch(() => null),
+    value => value?.name === 'magpie', 'real Magpie is listening',
+  )
+  return port
+}
+
+async function checkMagpie(t, { home, bin, modelPort, port, restarted, afterRestart, workspaceId }) {
+  const magpiePort = await startMagpie(t, home, bin, modelPort)
+  const model = 'fixture/dsh-remote-fixture'
+  const target = { device: { host: 'device-a', port, magpiePort }, instance: restarted.instance }
+  const operation = (request) => manageMagpie(target, request)
+  const detected = await operation({ operation: 'list' })
+  assert.equal(detected.canManage, true)
+  assert.deepEqual(detected.models.map(item => item.id), [model])
+  assert.equal(detected.dsh.available, true, detected.dsh.error)
+  assert.deepEqual(detected.dsh.selected, [])
+  const disabled = await operation({ operation: 'setEnabled', model, enabled: false })
+  assert.equal(disabled.models.length, 0)
+  assert.deepEqual(disabled.disabled, [{ id: model, canToggle: true }])
+  const restored = await operation({ operation: 'setEnabled', model, enabled: true })
+  assert.deepEqual(restored.models.map(item => item.id), [model])
+  assert.deepEqual(restored.disabled, [])
+
+  const provider = 'dsh-remote-magpie'
+  await assert.rejects(manageMagpie({ ...target, instance: 'old-instance' }, { operation: 'sync', models: [model] }), /Host 已更换/)
+  const synchronized = await operation({ operation: 'sync', models: [model] })
+  assert.deepEqual(synchronized.dsh.selected, [model])
+  const catalog = await rpc(afterRestart, 'session/modelCatalog', {})
+  assert.ok(catalog.groups.some(group => group.id === provider && group.models.some(item => item.id === model)))
+  assert.ok(catalog.groups.some(group => group.id === 'deepseek-official'), 'existing provider remains in catalog')
+  const { sessionId } = await rpc(afterRestart, 'session/create', { request: { workspaceId } })
+  await rpc(afterRestart, 'session/selectModel', { request: { sessionId, provider, model } })
+  await rpc(afterRestart, 'session/prompt', prompt(sessionId, 'magpie-route-prompt'))
+  await waitFor(
+    () => history(afterRestart, sessionId),
+    value => JSON.stringify(value).includes('fixture-magpie-answer'),
+    'DSH sends the turn through the real Magpie gateway',
+  )
+  const cleared = await operation({ operation: 'sync', models: [] })
+  assert.deepEqual(cleared.dsh.selected, [])
 }
 
 const prompt = (sessionId, text, requestId = randomUUID()) => ({
@@ -374,4 +438,9 @@ test('two OpenSSH clients share a real DSH workspace, one running agent and pers
   const removed = await rpc(afterRestart, 'pluginManager/removeBundle', { name: extensionName }, 200, 30_000)
   assert.equal(removed.application, 'applied')
   assert.equal((await extensionRoute(afterRestart)).status, 404)
+  if (magpie) {
+    await t.test('native Magpie model controls and DSH routing', async (scenario) => {
+      await checkMagpie(scenario, { home, bin, modelPort, port, restarted, afterRestart, workspaceId })
+    })
+  }
 })
