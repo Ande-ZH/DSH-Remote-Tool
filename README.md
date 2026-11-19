@@ -34,19 +34,19 @@ An SSH remote workspace plugin for DeepSeek Harness Desktop. It starts and reuse
 
 ## Install and connect
 
-### One-command installation from GitHub
+### One-command installation from npm
 
 After preparing Desktop's bundled `dsh` command as described above, run:
 
 ```bash
-npx --yes --package=https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz dsh-remote install
+npx --yes dsh-remote-tool@latest install
 ```
 
-The GitHub archive contains built bundles, so installation needs neither a source build nor npm login. The installer delegates installation to DSH's plugin manager and retains its package archive in `~/.dsh-remote/packages/`, independent of the npx cache. Reopen Desktop after installation.
+The package includes built bundles, so installation needs neither a source build nor npm login. The installer delegates installation to DSH's plugin manager and retains its package archive in `~/.dsh-remote/packages/`, independent of the npx cache. Reopen Desktop after installation.
 
 If the bundled command is not on `PATH`, append `--dsh "/absolute/path/to/dsh"` (on Windows, the bundled `dsh.cmd`). For an existing Web profile, append `--profile web`. Follow DSH's plugin compatibility and installation prompts.
 
-The package has **not yet been published to npmjs.org**. GitHub installation works now; registry installation and trusted publishing are documented in [Publishing](docs/publishing.md).
+The project is **DSH-Remote-Tool**; its npm package and primary CLI command are `dsh-remote-tool`. The existing `dsh-remote` CLI alias remains supported. See [Publishing](docs/publishing.md) for GitHub installation and trusted publishing.
 
 ### Archive installation
 
@@ -59,7 +59,7 @@ npm ci
 npm pack
 ```
 
-This produces `dsh-shared-remote-0.3.0.tgz`. In DeepSeek Harness Desktop, open **Plugins → Add existing plugin** (`插件 → 添加已有插件`), enter the archive's absolute path, install it, and enable it. Copy the archive to the Desktop machine if built elsewhere.
+This produces `dsh-remote-tool-0.3.1.tgz`. In DeepSeek Harness Desktop, open **Plugins → Add existing plugin** (`插件 → 添加已有插件`), enter the archive's absolute path, install it, and enable it. Copy the archive to the Desktop machine if built elsewhere.
 
 ### Connect a host
 
@@ -110,11 +110,11 @@ Built-in workspace appearance uses DSH Host settings and updates across authenti
 
 ## Command-line client
 
-To keep `dsh-remote` available globally:
+To keep `dsh-remote-tool` available globally:
 
 ```bash
-npm install --global https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz
-dsh-remote connect de-vps
+npm install --global dsh-remote-tool
+dsh-remote-tool connect de-vps
 ```
 
 From a source checkout, run it with Node.js:

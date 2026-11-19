@@ -32,19 +32,19 @@ DeepSeek Harness Desktop 的 SSH 远程工作区插件。插件在 Linux 主机�
 
 ## 安装与连接
 
-### 从 GitHub 一键安装
+### 从 npm 一键安装
 
 按上文准备好 Desktop 自带的 `dsh` 命令后，运行：
 
 ```bash
-npx --yes --package=https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz dsh-remote install
+npx --yes dsh-remote-tool@latest install
 ```
 
-GitHub 归档已包含构建结果，无需自行构建，也无需 npm 登录。安装器调用 DSH 插件管理器，并将插件归档保留在 `~/.dsh-remote/packages/`，清理 npx 缓存不会影响后续依赖安装。完成后重新打开 Desktop。
+安装包已包含构建结果，无需自行构建，也无需 npm 登录。安装器调用 DSH 插件管理器，并将插件归档保留在 `~/.dsh-remote/packages/`，清理 npx 缓存不会影响后续依赖安装。完成后重新打开 Desktop。
 
 若 `dsh` 不在 `PATH`，在命令末尾添加 `--dsh "/Desktop 自带的 dsh 绝对路径"`（Windows 使用自带的 `dsh.cmd`）。安装到已有 Web profile 时添加 `--profile web`。兼容性和安装提示按 DSH 插件管理器处理。
 
-当前**尚未发布到 npmjs.org**，GitHub 直装可立即使用。首次发布、后续 npm 一键安装与自动发布配置见[发布指南](docs/publishing.md)。
+项目名称为 **DSH-Remote-Tool**，npm 包名和主命令为 `dsh-remote-tool`；原命令别名 `dsh-remote` 继续可用。GitHub 直装与自动发布配置见[发布指南](docs/publishing.md)。
 
 ### 归档安装
 
@@ -57,7 +57,7 @@ npm ci
 npm pack
 ```
 
-命令生成 `dsh-shared-remote-0.3.0.tgz`。在 Desktop 中打开「插件 → 添加已有插件」，输入归档的本机绝对路径，安装并启用。在其他机器打包时，先把归档复制到 Desktop 所在机器。
+命令生成 `dsh-remote-tool-0.3.1.tgz`。在 Desktop 中打开「插件 → 添加已有插件」，输入归档的本机绝对路径，安装并启用。在其他机器打包时，先把归档复制到 Desktop 所在机器。
 
 ### 连接主机
 
@@ -108,11 +108,11 @@ npm pack
 
 ## 命令行客户端
 
-需要长期使用 `dsh-remote` 命令时，可以全局安装：
+需要长期使用 `dsh-remote-tool` 命令时，可以全局安装：
 
 ```bash
-npm install --global https://github.com/Ande-ZH/DSH-Remote-Tool/archive/refs/tags/v0.3.0.tar.gz
-dsh-remote connect de-vps
+npm install --global dsh-remote-tool
+dsh-remote-tool connect de-vps
 ```
 
 在源码目录中也可以通过 Node.js 运行：

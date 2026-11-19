@@ -42,5 +42,5 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/dsh-runtime/node_modules/.bin:$PATH"
           export DSH_E2E_BIN="$RUNNER_TEMP/dsh-runtime/node_modules/.bin/dsh"
-          export DSH_E2E_PLUGIN="$PWD/dsh-shared-remote-$(node -p "require('./package.json').version").tgz"
+          export DSH_E2E_PLUGIN="$PWD/$(node -p "require('./package.json').name + '-' + require('./package.json').version").tgz"
           npm run test:package

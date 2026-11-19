@@ -82,7 +82,7 @@ test('the client entry registers the device panel and remote model settings', as
   const source = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
   let client
   runInNewContext(source, { setTimeout: () => ({ unref() {} }), document: { createElement: () => ({}) }, window: { addEventListener: () => {}, __ModuleLoader__: { load: (entry) => { client = entry } } } })
-  assert.equal(client.id, 'dsh-shared-remote')
+  assert.equal(client.id, 'dsh-remote-tool')
   const registered = new Map()
   const plugin = client.factory((request) => {
     assert.ok(['react', 'react-dom', 'react/jsx-runtime'].includes(request))

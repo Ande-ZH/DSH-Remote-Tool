@@ -14,7 +14,7 @@ const client = await build({
 })
 const css = client.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? ''
 const js = client.outputFiles.find(file => file.path.endsWith('.js')).text
-await writeFile('dist/client.js', 'window.__ModuleLoader__.load({ id: "dsh-shared-remote", factory(require) {\nconst module = { exports: {} };\nconst __dshRemoteCss = ' + JSON.stringify(css) + ';\n' + js + '\nreturn module.exports;\n} });\n')
+await writeFile('dist/client.js', 'window.__ModuleLoader__.load({ id: "dsh-remote-tool", factory(require) {\nconst module = { exports: {} };\nconst __dshRemoteCss = ' + JSON.stringify(css) + ';\n' + js + '\nreturn module.exports;\n} });\n')
 await Promise.all([
   build({ entryPoints: ['src/host.cjs'], outfile: 'dist/host.cjs', bundle: true,
     platform: 'node', format: 'cjs', target: 'node24', charset: 'utf8' }),

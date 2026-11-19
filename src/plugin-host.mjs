@@ -3,12 +3,13 @@ import { join } from 'node:path'
 import { deviceService } from './services.mjs'
 
 export { deviceService }
-export const name = 'dsh-shared-remote'
+export const name = 'dsh-remote-tool'
 export const inject = ['connection']
 const route = '/api/dsh-shared-remote/devices'
 
 export function apply(ctx) {
-  const directory = join(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'), name)
+  // Retain the original storage directory when upgrading existing profiles.
+  const directory = join(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'), 'dsh-shared-remote')
   const service = deviceService(directory)
   ctx.effect(() => () => service.close(), name + ': tunnels')
   ctx.connection.fetch.register({

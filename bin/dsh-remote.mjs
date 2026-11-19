@@ -5,8 +5,8 @@ import { createServer } from 'node:http'
 import { connect } from '../src/client.mjs'
 import { install } from '../src/install.mjs'
 
-const usage = `dsh-remote install [--dsh <Desktop 自带的 dsh 路径>] [--profile desktop|web]
-dsh-remote connect <SSH 别名或 user@host> [--port 22] [--no-open]
+const usage = `dsh-remote-tool install [--dsh <Desktop 自带的 dsh 路径>] [--profile desktop|web]
+dsh-remote-tool connect <SSH 别名或 user@host> [--port 22] [--no-open]
 
 安装前请先运行一次 DSH Desktop，并完全退出应用。默认使用 PATH 中的 dsh。
 npm 版 DSH CLI 仅支持 web 等非 Desktop profile。`
@@ -24,7 +24,7 @@ function parse(args) {
     }
     return result
   }
-  if (args[0] !== 'connect') throw new Error('用法为 dsh-remote connect <SSH 别名或 user@host>')
+  if (args[0] !== 'connect') throw new Error('用法为 dsh-remote-tool connect <SSH 别名或 user@host>')
   const result = { host: args[1] }
   for (let i = 2; i < args.length; i += 1) {
     switch (args[i]) {
@@ -111,6 +111,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('dsh-remote: ' + error.message)
+  console.error('dsh-remote-tool: ' + error.message)
   process.exitCode = 1
 })

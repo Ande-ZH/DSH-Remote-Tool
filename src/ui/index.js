@@ -11,7 +11,7 @@ function Icon() {
   h('path', { d: 'M8 21h8m-4-4v4M7 8l3 3-3 3m6 0h4' }))
 }
 
-export const name = id
+export const name = 'dsh-remote-tool'
 export const inject = ['slots']
 
 export function apply(ctx) {

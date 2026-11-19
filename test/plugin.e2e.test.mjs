@@ -22,12 +22,12 @@ test('the packaged bundle activates through the published DSH plugin loader', {
   execFileSync('npm', ['install', '--prefix', client, '--ignore-scripts', '--no-audit', '--no-fund', resolve(archive)], {
     stdio: ['ignore', 'pipe', 'pipe'], timeout: 90_000,
   })
-  execFileSync(process.execPath, [join(client, 'node_modules/dsh-shared-remote/bin/dsh-remote.mjs'),
+  execFileSync(process.execPath, [join(client, 'node_modules/dsh-remote-tool/bin/dsh-remote.mjs'),
     'install', '--dsh', resolve(dsh), '--profile', 'web'], {
     env: { ...env, HOME: client, USERPROFILE: client }, stdio: ['ignore', 'pipe', 'pipe'], timeout: 90_000,
   })
   const profile = JSON.parse(await readFile(join(home, 'profiles/web/package.json'), 'utf8'))
-  const installedArchive = profile.dependencies['dsh-shared-remote'].slice('file:'.length)
+  const installedArchive = profile.dependencies['dsh-remote-tool'].slice('file:'.length)
   await access(installedArchive)
   // The CLI can disappear from an npm/npx cache after installation.
   await rm(join(client, 'node_modules'), { recursive: true, force: true })
@@ -65,7 +65,7 @@ test('the packaged bundle activates through the published DSH plugin loader', {
 
   const html = await (await fetch(entry.origin + '/', { headers })).text()
   const combos = html.match(/(?:\.\/)?plugins\/\?\?[^"'<>\s]+/g) ?? []
-  const advertised = combos.find((url) => url.includes('dsh-shared-remote/client.js'))
+  const advertised = combos.find((url) => url.includes('dsh-remote-tool/client.js'))
   assert.ok(advertised, 'DSH registers the addon client in the real web module graph')
   const bundle = await fetch(new URL(advertised.replaceAll('\\u0026', '&').replaceAll('&amp;', '&'), entry.origin), { headers })
   assert.equal(bundle.status, 200)

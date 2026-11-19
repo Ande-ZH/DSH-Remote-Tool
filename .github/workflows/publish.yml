@@ -38,4 +38,4 @@ jobs:
       - run: git diff --exit-code -- dist
       - run: npm pack --ignore-scripts --silent
       - name: Publish with npm trusted publishing
-        run: npm publish "dsh-shared-remote-$(node -p "require('./package.json').version").tgz" --provenance --access public
+        run: npm publish "$(node -p "require('./package.json').name + '-' + require('./package.json').version").tgz" --provenance --access public

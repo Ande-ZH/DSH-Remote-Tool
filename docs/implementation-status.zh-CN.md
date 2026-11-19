@@ -9,7 +9,7 @@
 - 共享外观：沿用远端 DSH 的 `ui-theme` 配置与事件机制，本地 Desktop 插件安装和配置仍独立。
 - 按项目要求，自动部署不执行 SHA-256 校验。
 - `dsh-remote install`：通过 DSH 自带命令安装插件；持久保留归档，支持指定命令路径和 profile。GitHub 归档可直接通过 npm/npx 使用，无需源码构建。
-- 发布配置：版本 `0.3.0`，提供构建/测试/真实安装 CI 与手动 OIDC 发布工作流；npmjs.org 首次发布等待用户稍后登录。
+- 发布配置：项目名称 DSH-Remote-Tool，npm 包名与主命令 `dsh-remote-tool`，版本 `0.3.1`；提供构建/测试/真实安装 CI 与手动 OIDC 发布工作流。原 `dsh-remote` 命令别名与设备配置目录继续保留。
 
 ## 已执行验证
 
