@@ -47,6 +47,13 @@ npm pack --silent
 npm publish ./dsh-remote-tool-0.3.1.tgz --access public --registry=https://registry.npmjs.org/
 ```
 
+npm 接受上传后还可能进行发布时扫描，通常约 5 分钟，繁忙时可能达到 15 分钟或更久。命令输出成功不代表立即可安装；首次发布等待期间可能仅能查询到 `0.0.0-stage` 占位版本。以 registry 返回目标版本、`latest` 指向该版本，并能实际运行安装命令为准。不要为了等待扫描重复发布或递增版本。
+
+```bash
+npm view dsh-remote-tool version dist-tags --registry=https://registry.npmjs.org/ --prefer-online
+npx --yes dsh-remote-tool@latest --help
+```
+
 npm 的同一个版本不能重复发布；每次发布须同步更新 `package.json`、`package-lock.json`、文档里的版本和 Git 标签。
 
 ## GitHub Actions 后续发布
@@ -66,4 +73,4 @@ npm 的同一个版本不能重复发布；每次发布须同步更新 `package.
 
 `.github/workflows/ci.yml` 在提交或 PR 时运行 Node.js 22/24 构建与测试，并通过真实 DSH Web profile 验证 npm 安装器、归档保留和插件激活。Desktop 内的最终交互仍需在相应平台验证。
 
-参考：[npm 包命名规则](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/#name)、[npm HTTP/Git 安装说明](https://docs.npmjs.com/cli/v11/commands/npm-install/)、[npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)。
+参考：[npm 包命名规则](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/#name)、[npm HTTP/Git 安装说明](https://docs.npmjs.com/cli/v11/commands/npm-install/)、[npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)、[npm 发布时扫描及可用性延迟](https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/)。
